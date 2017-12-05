@@ -2,14 +2,11 @@
 
 # Authors: Guillaume Lemaitre <g.lemaitre58@gmail.com>
 # License: MIT
-from __future__ import division
-
 import warnings
 from collections import Counter
 from numbers import Integral
 
 import numpy as np
-
 from sklearn.neighbors.base import KNeighborsMixin
 from sklearn.neighbors import NearestNeighbors
 from sklearn.externals import six, joblib
@@ -79,7 +76,7 @@ def check_target_type(y):
     return y
 
 
-def hash_X_y(X, y, n_samples=10, n_features=5):
+def hash_X_y(X, y, n_samples=1000):
     """Compute hash of the input arrays.
 
     Parameters
@@ -88,25 +85,20 @@ def hash_X_y(X, y, n_samples=10, n_features=5):
         The ``X`` array.
 
     y : ndarray, shape (n_samples)
-        The ``y`` array.
-
-    n_samples : int, optional
-        The number of samples to use to compute the hash. Default is 100.
-
-    n_features : int, optional
-        The number of features to use to compute the hash. Default is 10.
 
     Returns
     -------
     X_hash: str
         Hash identifier of the ``X`` matrix.
+
     y_hash: str
         Hash identifier of the ``y`` matrix.
     """
-    row_idx = slice(None, None, max(1, X.shape[0] // n_samples))
-    col_idx = slice(None, None, max(1, X.shape[1] // n_features))
+    rng = np.random.RandomState(0)
+    raw_idx = rng.randint(X.shape[0], size=n_samples)
+    col_idx = rng.randint(X.shape[1], size=n_samples)
 
-    return joblib.hash(X[row_idx, col_idx]), joblib.hash(y[row_idx])
+    return joblib.hash(X[raw_idx, col_idx]), joblib.hash(y[raw_idx])
 
 
 def _ratio_all(y, sampling_type):
@@ -214,7 +206,7 @@ def _ratio_dict(ratio, y, sampling_type):
         n_samples_majority = max(target_stats.values())
         class_majority = max(target_stats, key=target_stats.get)
         for class_sample, n_samples in ratio.items():
-            if n_samples < target_stats[class_sample]:
+            if n_samples > target_stats[class_sample] and class_sample == class_majority:
                 raise ValueError("With over-sampling methods, the number"
                                  " of samples in a class should be greater"
                                  " or equal to the original number of samples."
@@ -228,7 +220,8 @@ def _ratio_dict(ratio, y, sampling_type):
                               " {})".format(n_samples, class_sample,
                                             class_majority,
                                             n_samples_majority))
-            ratio_[class_sample] = n_samples - target_stats[class_sample]
+            if class_sample != class_majority:
+                ratio_[class_sample] = n_samples - target_stats[class_sample]
     elif sampling_type == 'under-sampling':
         for class_sample, n_samples in ratio.items():
             if n_samples > target_stats[class_sample]:
